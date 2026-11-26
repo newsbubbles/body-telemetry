@@ -131,6 +131,14 @@ class StoreTest(unittest.TestCase):
         self.assertEqual((h["imagine"]["seats_on"], h["imagine"]["uses"], h["imagine"]["per_100_turns"]), (1, 2, 50.0))
         self.assertEqual((h["escalate"]["uses"], h["sleep"]["uses"], h["think_tool"]["seats_on"]), (1, 4, 0))
 
+    def test_an_import_does_not_count_twice_what_a_seat_sent_live(self):
+        home = Path(self.dir.name) / "home" / "seats" / "fen"
+        home.mkdir(parents=True)
+        (home / "ledger.jsonl").write_text("".join(json.dumps({"ts": 1795700000.0 + i, "turn": i}) + "\n" for i in range(4)))
+        self.store.insert([ev("turn", dt=2, turn=2, uid="live-2"), ev("turn", dt=3, turn=3, uid="live-3")], source="live")
+        got = importer.import_path(self.store, Path(self.dir.name) / "home", say=lambda s: None)
+        self.assertEqual(got.get("turn"), 2)
+
     def test_import_reads_a_seat_and_an_eval_run_without_speech(self):
         root = Path(self.dir.name) / "evals" / "grid" / "20261126-120000"
         seat = root / "case-a" / "busy" / "V1" / "00" / "seats" / "fen"

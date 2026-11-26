@@ -319,7 +319,13 @@ def import_path(store: Store, root: str | Path, detail: str = "counts", machine:
         if owner:
             base.update({k: v for k, v in sample_labels(tuple(seat.relative_to(owner).parts)).items()
                          if v is not None})
-        evs = list(seat_events(seat, base)) + [setup_event(seat, base)]
+        evs = list(seat_events(seat, base))
+        # a seat that already sends live: its files only add what came before its first live event
+        live = store.execute("SELECT MIN(ts) FROM events WHERE source = 'live' AND seat = ? AND COALESCE(machine, '') = ? "
+                             "AND COALESCE(run, '') = ?", (seat.name, base.get("machine") or "", base.get("run") or ""))
+        if live and live[0][0]:
+            evs = [e for e in evs if not isinstance(e.get("ts"), (int, float)) or e["ts"] < live[0][0]]
+        evs.append(setup_event(seat, base))
         ts = [e["ts"] for e in evs if isinstance(e.get("ts"), (int, float))]
         if ts:
             first_ts[str(seat)] = min(ts)

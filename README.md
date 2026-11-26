@@ -47,7 +47,8 @@ body-telemetry import ~/.body-harness
 ```
 
 You can point it at a home, one seat folder, or an eval output folder (it finds every `results.jsonl` below it).
-Importing the same folder twice adds nothing new. The importer reads only the count files (`usage.jsonl`,
+Importing the same folder twice adds nothing new, and for a seat that already sends live events the import adds only
+what came before the first one. The importer reads only the count files (`usage.jsonl`,
 `ledger.jsonl`, `calls.jsonl`, `reflexes.jsonl`, `invented.jsonl`, `outbox.jsonl` and eval `results.jsonl`), each
 seat's `config.json`, the world and character names from `state.json`, and a behavior eval's transcripts for the
 graphs the agents wrote. From the config it keeps only switches, numbers and model names (so the seat page can show

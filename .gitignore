@@ -1,0 +1,10 @@
+*.db
+*.db-shm
+*.db-wal
+__pycache__/
+*.egg-info/
+dist/
+build/
+.venv/
+.claude/
+PROPOSAL.md

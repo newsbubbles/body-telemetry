@@ -1,7 +1,8 @@
 # body-telemetry
 
 **See what your agents do.** body-telemetry is a small server and a dashboard for the AI characters you run with
-[body-harness](https://github.com/newsbubbles/body-harness): what they spend, how big their context gets, which tools
+[body-harness](https://github.com/newsbubbles/body-harness) in [embody](https://github.com/newsbubbles/embody) worlds:
+what they spend, how big their context gets, which tools
 they reach for and in what order, how often the world says no, which of the harness's helpers they lean on, the
 behavior graphs they write for themselves, and how your eval runs score. Every number can be sliced by world, seat,
 character, model, settings, harness version or eval run, for one agent, a group of them or all of them, on your
@@ -177,6 +178,15 @@ The same queries work from the command line:
 ```bash
 body-telemetry query measure=pass_rate by=variant run=grid/20261126-120000
 ```
+
+## The family
+
+- [embody](https://github.com/newsbubbles/embody): the world engine. Worlds, their rules and their history live there.
+- [body-harness](https://github.com/newsbubbles/body-harness): a mind for one body in an embody world. Its seats send
+  their counts here when their config names this server
+  ([the wire format](https://github.com/newsbubbles/body-harness/blob/main/docs/telemetry.md)).
+- body-telemetry (this repo): a server and dashboard you run yourself, for what every seat spends and does, sliced
+  any way.
 
 ## Develop
 

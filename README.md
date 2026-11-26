@@ -87,9 +87,9 @@ A server can also cut what arrives, whatever the seats send: `body-telemetry ser
 
 | view | what it answers |
 |---|---|
-| **Seats** | Every character: model, turns, spend (all and the last 24 hours), last wake, refusals, and whether it is awake, quiet or asleep. |
+| **Seats** | Every character: model, turns, spend (all and the last 24 hours), last wake, refusals, and whether it is awake, quiet, asleep, stopped or in error. |
 | **Spend** | Spend over time by model, seat and world; cost per turn; cache hit rate. |
-| **Context** | Input per call over time (median and the top 5%), by model and by seat; how big tool answers are. |
+| **Context** | Input per call over time (median and the top 5%), by model and by seat; how big tool answers are; what the context is made of (system prompt, tools, wake, history, tool results), by model and over time. |
 | **Action space** | Tool mix by model and by settings, the verbs agents act with, refusal rates by tool and by the world's reason, invented tool names. |
 | **Flow** | What agents call next, like a site's user flow: from the start of a turn, or from every call of one op or a set of ops, the next calls step by step, with refusals marked. Click an op to start from it; compare models, settings, worlds or seats side by side. |
 | **Helpers** | The things the harness adds to help smaller models (escalation, imagination, the past, the menu, the think tool, reflexes, sleep and nudges): which seats have each on, how often each is used per 100 turns, by model and by seat, which nudges fire and which models turns escalate to. |
@@ -161,7 +161,7 @@ not know yet go into a JSON column, so a newer harness never breaks an older ser
 | `GET /v1/events` | The rows behind a slice, newest first, with the same filters. |
 | `GET /v1/flow` | What comes next: `start` (an op, a set like `act,say`, or empty for the start of a turn), `depth`, `node` (`tool` or `verb`), `top`, and the same filters. Steps and links with counts and shares. |
 | `GET /v1/helpers` | Each helper: seats with it on, uses, uses per 100 turns, spend; the same by model and by seat; nudge kinds; escalation targets. |
-| `GET /v1/seats` | One row per seat, with its state (awake, quiet, asleep, errors). |
+| `GET /v1/seats` | One row per seat, with its state (awake, quiet, asleep, stopped, errors). |
 | `GET /v1/seat` | One seat close up: `seat=`, its summary, setup, helpers and latest behavior graphs. |
 | `GET /v1/graphs` | Behavior graphs agents wrote, newest first, with what each scored. |
 | `GET /v1/meta` | What the store holds: kinds, time range, measures, labels and their values. |

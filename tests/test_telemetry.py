@@ -71,6 +71,29 @@ class StoreTest(unittest.TestCase):
         self.assertNotIn("Ada", r["extra"])
         self.assertEqual((r["nudges"], json.loads(r["extra"])["nudge_kinds"]), (2, ["quiet", "stuck"]))
 
+    def test_the_senders_newer_events(self):
+        evs = [ev("seat", event="start", turns=0, model="p:m/x", uid="u1"),
+               ev("setup", dt=1, uid="u2", setup={"model": "p:m/x", "menu": True, "max_steps": 8,
+                                                 "prices": {"p:m/x": [1, 2]}, "api_key_env": "MY_KEY", "extra_prompt": "hi"}),
+               ev("model_call", dt=2, uid="u3", model="p:m/x", use="turn", cost=0.001,
+                  ctx={"system": 4000, "tools": 2500, "wake": 300, "history": 9000, "tool_results": 1200}),
+               ev("turn", dt=3, uid="u4", turn=1, nudges=2, nudge_kinds=["stuck", "quiet"], ended="slept"),
+               ev("tell", dt=4, uid="u5", to="operator", about="flaw", out_chars=120),
+               ev("seat", dt=5, uid="u6", event="error", error="TimeoutError"),
+               ev("seat", dt=6, uid="u7", event="stop", why="grant refused", status=403)]
+        self.assertEqual(self.store.insert(evs, detail="counts"), (7, 0))
+        self.assertEqual(self.store.insert(evs, detail="counts"), (0, 0))  # a repost adds nothing
+        setup = json.loads(self.store.execute("SELECT extra FROM events WHERE kind = 'setup'")[0][0])["setup"]
+        self.assertEqual(setup, {"model": "p:m/x", "menu": True, "max_steps": 8})
+        out = query.run_query(self.store, {"measure": "ctx_history"})
+        self.assertEqual(out["rows"][0]["value"], 9000)
+        self.assertEqual(self.store.execute("SELECT code FROM events WHERE event = 'error'")[0][0], "TimeoutError")
+        (s,) = query.seats(self.store, {})
+        self.assertEqual((s["state"], s["errors"]), ("stopped", 1))
+        self.assertEqual(helpers(self.store, {})["nudge_kinds"], [{"kind": "stuck", "n": 1}, {"kind": "quiet", "n": 1}])
+        with self.assertRaisesRegex(query.QueryError, "Measures: events, seats, spend"):
+            query.run_query(self.store, {"measure": "cost"})
+
     def test_a_behavior_graph_keeps_its_shape_at_counts(self):
         g = {"start": "spoken", "nodes": {
             "spoken": {"kind": "check", "if": "heard('salt', by='Joss')", "yes": "sell", "no": "SLEEP"},

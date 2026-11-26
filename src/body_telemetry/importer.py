@@ -24,7 +24,7 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Iterator
 
-from .store import Store
+from .store import Store, safe_setup
 
 SEAT_FILES = ("usage.jsonl", "ledger.jsonl", "calls.jsonl", "reflexes.jsonl", "invented.jsonl", "outbox.jsonl")
 # Folders a seat or a run keeps that hold no counts: never walked.
@@ -120,27 +120,6 @@ def seat_labels(seat: Path, machine: str, run: str) -> dict[str, Any]:
             "machine": machine, "run": run, "model": cfg.get("model") or None,
             "world": brief.get("world") or None, "character": brief.get("you") or None,
             "role": brief.get("role") or None}
-
-
-# What a setup event keeps of a config: switches and numbers by any plain name, and these model names. Never prompts,
-# providers, env files, telemetry or session settings, or anything named like a secret.
-SETUP_MODELS = ("model", "judge", "escalate", "imagine_model", "think_model")
-SETUP_NEVER = ("providers", "env_files", "extra_prompt", "extra", "telemetry", "session", "joined")
-_SECRETISH = re.compile(r"key|token|secret|pass|auth|cookie|door|invite", re.I)
-
-
-def safe_setup(cfg: dict[str, Any]) -> dict[str, Any]:
-    out: dict[str, Any] = {}
-    for k, v in cfg.items():
-        if k in SETUP_NEVER or _SECRETISH.search(k) or not re.fullmatch(r"[a-z][a-z0-9_]{0,40}", k):
-            continue
-        if isinstance(v, bool) or (isinstance(v, (int, float)) and abs(v) < 1e9):
-            out[k] = v
-        elif k in SETUP_MODELS and isinstance(v, str) and len(v) <= 120:
-            out[k] = v
-        elif k in SETUP_MODELS and isinstance(v, list) and all(isinstance(x, str) and len(x) <= 120 for x in v):
-            out[k] = v[:8]
-    return out
 
 
 def setup_event(seat: Path, base: dict[str, Any]) -> dict[str, Any]:

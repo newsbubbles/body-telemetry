@@ -34,6 +34,11 @@ MEASURES: dict[str, tuple[str | None, Any, str, str, str]] = {
     "input_max": ("model_call", "MAX(input_tokens)", "input per call, largest", "tokens", "value"),
     "context_use": ("model_call", ("SUM(input_tokens)", "SUM(CASE WHEN ctx_limit > 0 THEN ctx_limit END)"),
                     "input over the model's limit", "share", "ratio"),
+    "ctx_system": ("model_call", "AVG(ctx_system)", "system prompt, chars per call", "chars", "value"),
+    "ctx_tools": ("model_call", "AVG(ctx_tools)", "tool definitions, chars per call", "chars", "value"),
+    "ctx_wake": ("model_call", "AVG(ctx_wake)", "wake, chars per call", "chars", "value"),
+    "ctx_history": ("model_call", "AVG(ctx_history)", "history, chars per call", "chars", "value"),
+    "ctx_tool_results": ("model_call", "AVG(ctx_tool_results)", "tool results, chars per call", "chars", "value"),
     "cache_hit": ("model_call", ("SUM(cached_tokens)", "SUM(input_tokens)"), "cache hit rate", "share", "ratio"),
     "cost_per_call": ("model_call", "AVG(cost)", "cost per model call", "usd", "value"),
     "latency_p50": ("model_call", "p50(seconds)", "model wait, median", "seconds", "value"),
@@ -100,7 +105,8 @@ def measure_sql(name: str) -> tuple[str | None, Any, str, str, str]:
     agg, _, col = name.partition(":")
     if agg in AGGS and col in NUMBERS:
         return None, f"{AGGS[agg]}({q(col)})", f"{agg} of {col}", col, "value"
-    raise QueryError(f"no such measure: {name}")
+    raise QueryError(f"no such measure: {name}. Measures: {', '.join(MEASURES)}; or an aggregate of a number "
+                     f"column, {'|'.join(AGGS)}:<column> (columns: {', '.join(NUMBERS)})")
 
 
 def when(v: str, now: float) -> float:
@@ -285,7 +291,10 @@ def seats(store: Store, params: dict[str, Any]) -> list[dict[str, Any]]:
         MAX(CASE WHEN kind = 'turn' THEN ts END) last_wake, MAX(ts) last_seen, MIN(ts) first_seen,
         SUM(kind = 'tool_call') tool_calls, SUM(kind = 'tool_call' AND ok = 0) refusals,
         SUM(kind = 'turn' AND ended = 'out of steps') out_of_steps,
-        SUM(kind = 'tell' AND event = 'error') errors, SUM(kind = 'invented') invented,
+        MAX(CASE WHEN kind = 'seat' AND event IN ('start', 'restart') THEN ts END) last_start,
+        MAX(CASE WHEN kind = 'seat' AND event = 'stop' THEN ts END) last_stop,
+        MAX(CASE WHEN kind IN ('seat', 'tell') AND event = 'error' THEN ts END) last_error,
+        SUM(kind IN ('seat', 'tell') AND event = 'error') errors, SUM(kind = 'invented') invented,
         SUM(CASE WHEN kind = 'turn' THEN deeds END) deeds,
         MAX(CASE WHEN kind = 'model_call' THEN input_tokens END) input_max,
         p50(CASE WHEN kind = 'model_call' THEN input_tokens END) input_p50,
@@ -294,9 +303,16 @@ def seats(store: Store, params: dict[str, Any]) -> list[dict[str, Any]]:
         MAX(source) source, MAX(version) version, MAX(switches) switches
         FROM events{w} GROUP BY machine, seat ORDER BY last_seen DESC LIMIT 2000"""
     now = time.time()
-    return [dict(r, state=state_of(r["errors"], now - (r["last_seen"] or 0))) for r in store.execute(sql, args)]
+    return [dict(r, state=state_of(r, now)) for r in store.execute(sql, args)]
 
 
-def state_of(errors: int | None, age: float) -> str:
-    """A seat's state from its last event: errors win, then awake (the last 5 minutes), quiet (the last hour), asleep."""
-    return "errors" if errors else "awake" if age < 300 else "quiet" if age < 3600 else "asleep"
+def state_of(r: Any, now: float) -> str:
+    """A seat's state: stopped (it said so, and has not started since), errors (since its last start), then by its
+    last event: awake (the last 5 minutes), quiet (the last hour), asleep."""
+    start = r["last_start"] or 0
+    if r["last_stop"] and r["last_stop"] >= start:
+        return "stopped"
+    if r["last_error"] and r["last_error"] >= start:
+        return "errors"
+    age = now - (r["last_seen"] or 0)
+    return "awake" if age < 300 else "quiet" if age < 3600 else "asleep"

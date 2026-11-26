@@ -21,6 +21,8 @@ from __future__ import annotations
 import hmac
 import ipaddress
 import json
+import os
+import socket
 import sys
 import threading
 import time
@@ -176,6 +178,18 @@ def handler(app: App) -> type[BaseHTTPRequestHandler]:
     return H
 
 
+class Server(ThreadingHTTPServer):
+    """One port, one server. On Windows SO_REUSEADDR lets a second server share a busy port: there the port is taken
+    exclusively instead, so a busy port is an error, not two servers answering at random."""
+    allow_reuse_address = os.name != "nt"
+    daemon_threads = True
+
+    def server_bind(self) -> None:
+        if os.name == "nt" and hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
+
+
 def serve(db: str, host: str, port: int, key: str = "", max_detail: str = "full", open_read: bool = False) -> int:
     if not loopback(host) and not key:
         print(f"refusing to listen on {host} without a key: set BODY_TELEMETRY_KEY (or the variable --key-env "
@@ -183,8 +197,14 @@ def serve(db: str, host: str, port: int, key: str = "", max_detail: str = "full"
         return 2
     store = Store(db)
     app = App(store, key, max_detail, open_read)
+    try:
+        srv = Server((host, port), handler(app))
+    except OSError as e:
+        print(f"cannot listen on {host}:{port}: {e.strerror or e}. Another program may have the port: "
+              f"try --port {port + 1}, or stop the other one.", file=sys.stderr)
+        store.close()
+        return 1
     threading.Thread(target=app.meta, daemon=True).start()  # warm: the first page should not wait on it
-    srv = ThreadingHTTPServer((host, port), handler(app))
     print(f"body-telemetry {__version__} on http://{host}:{port}/  db={db} rows={store.count()} "
           f"key={'yes' if key else 'no'} reads={'open' if open_read or not key else 'need the key'}", flush=True)
     try:

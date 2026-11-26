@@ -26,7 +26,10 @@ FIELDS = ("use", "tool", "layer", "verb", "code", "event", "ended", "case", "var
 NUMBERS = ("turn", "step", "rung", "sample", "level", "ok", "calls", "input_tokens", "cached_tokens",
            "cache_write_tokens", "output_tokens", "reasoning_tokens", "cost", "seconds", "steps", "tool_calls",
            "deeds", "says", "reads", "opens", "nudges", "escalations", "wall", "secs", "out_chars", "rules", "passed",
-           "trials", "input_max", "input_sum", "model_calls", "ctx_limit")
+           "trials", "input_max", "input_sum", "model_calls", "ctx_limit", "ctx_system", "ctx_tools", "ctx_wake",
+           "ctx_history", "ctx_tool_results")
+# The parts of a model call's context the sender measures (characters): each its own column, ctx_<part>.
+CTX_PARTS = ("system", "tools", "wake", "history", "tool_results")
 TEXT = LABELS + FIELDS
 COLUMNS = ("ts",) + TEXT + NUMBERS
 
@@ -71,6 +74,27 @@ def nudge_kind(n: Any) -> str:
 
 GRAPH_EDGES = ("yes", "no", "unsure", "then", "resume", "none")
 GRAPH_ENDS = ("WAKE", "SLEEP")
+
+
+# What a setup keeps, whoever sends it: switches and numbers by any plain name, and these model names. Never prompts,
+# providers, prices, env files, telemetry or session settings, or anything named like a secret.
+SETUP_MODELS = ("model", "judge", "escalate", "imagine_model", "think_model")
+SETUP_NEVER = ("providers", "env_files", "extra_prompt", "extra", "telemetry", "session", "joined", "prices", "crew")
+_SECRETISH = re.compile(r"key|token|secret|pass|auth|cookie|door|invite", re.I)
+
+
+def safe_setup(cfg: dict[str, Any]) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for k, v in cfg.items():
+        if k in SETUP_NEVER or _SECRETISH.search(k) or not re.fullmatch(r"[a-z][a-z0-9_]{0,40}", k):
+            continue
+        if isinstance(v, bool) or (isinstance(v, (int, float)) and abs(v) < 1e9):
+            out[k] = v
+        elif k in SETUP_MODELS and isinstance(v, str) and len(v) <= 120:
+            out[k] = v
+        elif k in SETUP_MODELS and isinstance(v, list) and all(isinstance(x, str) and len(x) <= 120 for x in v):
+            out[k] = v[:8]
+    return out
 
 
 def graph_shape(g: dict[str, Any], detail: str) -> dict[str, Any]:
@@ -135,7 +159,20 @@ def normalize(ev: dict[str, Any], source: str = "live", detail: str = "full") ->
     uid = str(ev.get("uid") or uid_of(ev))
     e = dict(ev)
     e.pop("uid", None)
+    if e.get("kind") == "seat" and e.get("event") == "error" and isinstance(e.get("error"), str) \
+            and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.]{0,60}", e["error"]):
+        e["code"] = e.pop("error")  # an error's type is a name, not words: kept at every level, as the code
     cut_words(e, detail)
+    if e.get("kind") == "setup" and isinstance(e.get("setup"), dict):
+        e["setup"] = safe_setup(e["setup"])
+    if isinstance(e.get("ctx"), dict):
+        ctx = e.pop("ctx")
+        for part in CTX_PARTS:
+            v = ctx.pop(part, None)
+            if isinstance(v, (int, float)) and not isinstance(v, bool):
+                e["ctx_" + part] = v
+        if ctx:
+            e["ctx"] = ctx
     if isinstance(e.get("graph"), dict):
         e["graph"] = graph_shape(e["graph"], detail)
     row: dict[str, Any] = {"uid": uid, "source": e.pop("source", None) or source}

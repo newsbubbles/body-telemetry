@@ -798,10 +798,11 @@ async function inspect(title, measure, params) {
 
 // ---------- views ----------
 const V = {};
-// A seat's state as the server read it: awake (an event in the last 5 minutes), quiet (the last hour), asleep, errors.
+// A seat's state as the server read it: awake (an event in the last 5 minutes), quiet (the last hour), asleep, errors
+// (since its last start), stopped (it said so).
 function statusOf(parent, r, dotOnly) {
   const [tok, label] = { errors: ["--critical", `${r.errors} error${r.errors > 1 ? "s" : ""}`], awake: ["--good", "awake"],
-    quiet: ["--warning", "quiet"], asleep: ["--other", "asleep"] }[r.state] || ["--other", r.state || "–"];
+    quiet: ["--warning", "quiet"], asleep: ["--other", "asleep"], stopped: ["--serious", "stopped"] }[r.state] || ["--other", r.state || "–"];
   const s = el("span", { class: "status", title: label }, parent);
   el("i", { style: `background:${css(tok)}` }, s);
   if (!dotOnly) s.appendChild(document.createTextNode(label));
@@ -929,8 +930,28 @@ V.context = async (m) => {
     chartCard(g, "Largest input by eval variant", "The biggest single call in each sample, median over samples.", "", "eval_input_max_p50", "bar", "variant"),
     chartCard(g, "Answer size by tool, median", "Characters the world sent back: what lands in the next call's context.", "", "answer_chars_p50", "bar", "tool"),
   ]);
-  const parts = card(g, "What the context is made of", null, "w12");
-  el("div", { class: "note" }, parts.body, "Not sent yet. The store keeps any field it is given, so this fills in when the sender adds the context's parts (system prompt, wake, tool results, history) and the model's limit to each model call.");
+  // the context by part: characters per model call, as the sender measures them
+  const PARTS = [["ctx_system", "system"], ["ctx_tools", "tools"], ["ctx_wake", "wake"], ["ctx_history", "history"], ["ctx_tool_results", "tool results"]];
+  colorMaps.part = PARTS.map(p => p[1]);
+  const parts = card(g, "What the context is made of, by model", "Characters per model call, by part. Click a model to filter to it.", "");
+  const over = card(g, "The context by part over time", "Characters per model call.", "");
+  try {
+    const b = autoBucket();
+    const [byModel, byTime] = await Promise.all([
+      Promise.all(PARTS.map(([m]) => Q(m, { by: "model" }))), Promise.all(PARTS.map(([m]) => Q(m, { bucket: b })))]);
+    const rows = byModel.flatMap((res, i) => res.rows.map(r => ({ ...r, part: PARTS[i][1] })));
+    if (!rows.some(r => r.value)) {
+      empty(parts.body, "Not sent yet: body-harness sends the context's parts from version ef9db8e on.");
+      over.remove();
+    } else {
+      stackChart(parts.body, { rows, unit: "chars", label: "chars per call" }, "model", "part", { unit: "chars" });
+      parts.setTable(() => tableOf([{ key: "model", label: "model", fmt: short }, { key: "part", label: "part" }, { key: "value", label: "chars per call", num: true, fmt: compact }], rows));
+      parts.setEvents("ctx_history", {});
+      const trows = byTime.flatMap((res, i) => res.rows.map(r => ({ ...r, part: PARTS[i][1] })));
+      lineChart(over.body, { ...byTime[0], rows: trows, label: "chars per call" }, "part", { noDrill: true, unit: "chars" });
+      over.setTable(() => tableOf([{ key: "t", label: "time", fmt: v => dt(v, true) }, { key: "part", label: "part" }, { key: "value", label: "chars per call", num: true, fmt: compact }], trows));
+    }
+  } catch (e) { empty(parts.body, "Could not load: " + e.message); }
 };
 
 V.actions = async (m) => {

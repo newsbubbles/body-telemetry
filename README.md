@@ -75,7 +75,7 @@ You choose the detail level per seat or per home. `counts` is the default.
 
 | detail | what leaves the seat |
 |---|---|
-| `counts` | Numbers (tokens, cost, wait times, steps, deeds), the names of tools, verbs, models, the world and the character, whether a call was refused and the world's refusal code, the kind of each harness nudge (`stuck`, `quiet`), and the shape of a behavior graph (node kinds, edges, the op and verb of each deed). **No speech, notes, wake reasons, nudge text or the words inside a graph.** |
+| `counts` | Numbers (tokens, cost, wait times, steps, deeds), the names of tools, verbs, models, the world and the character, whether a call was refused and the world's refusal code, the kind of each harness nudge (`stuck`, `quiet`), what woke a turn (a timeout, an event, being spoken to) and whether another seat did, and the shape of a behavior graph (node kinds, edges, the op and verb of each deed). **No speech, notes, wake reasons, nudge text or the words inside a graph.** |
 | `lines` | Also the wake reason, the turn's note, a refusal's reason, a nudge's text and a graph's conditions and questions, each cut to 120 characters. |
 | `full` | The same, uncut. Players' words are other people's words: use this only for a world you own. |
 

@@ -21,13 +21,13 @@ LABELS = ("kind", "source", "harness", "version", "world", "seat", "character", 
           "settings", "switches", "machine", "run")
 # Text fields of one kind or another: what a tool was, how a turn ended, which eval case.
 FIELDS = ("use", "tool", "layer", "verb", "code", "event", "ended", "case", "variant", "scene", "trigger", "outcome",
-          "read_as", "day")
+          "read_as", "day", "woke", "woke_by", "woke_actor")
 # Numbers.
 NUMBERS = ("turn", "step", "rung", "sample", "level", "ok", "calls", "input_tokens", "cached_tokens",
            "cache_write_tokens", "output_tokens", "reasoning_tokens", "cost", "seconds", "steps", "tool_calls",
            "deeds", "says", "reads", "opens", "nudges", "escalations", "wall", "secs", "out_chars", "rules", "passed",
            "trials", "input_max", "input_sum", "model_calls", "ctx_limit", "ctx_system", "ctx_tools", "ctx_wake",
-           "ctx_history", "ctx_tool_results")
+           "ctx_history", "ctx_tool_results", "woke_seat")
 # The parts of a model call's context the sender measures (characters): each its own column, ctx_<part>.
 CTX_PARTS = ("system", "tools", "wake", "history", "tool_results")
 TEXT = LABELS + FIELDS
